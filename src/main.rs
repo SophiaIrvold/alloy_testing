@@ -5,6 +5,19 @@ use tokio_stream::StreamExt;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
+    let (quit_tx, mut quit_rx) = tokio::sync::oneshot::channel();
+    let mut quit_tx = Some(quit_tx);
+
+
+    // just dying seems to make the eth node think we still have the log subscription going for a while
+    ctrlc::set_handler(move || {
+        if let Some(quit_tx) = quit_tx.take() {
+            quit_tx.send(()).unwrap();
+        }
+        println!("exiting gracefully");
+    }).unwrap();
+
+
     let provider = "wss://eth-mainnet.ws.alchemyapi.io/ws/demo";
     let provider = alloy::providers::WsConnect::new(provider);
     let provider = alloy::providers::ProviderBuilder::new()
@@ -31,12 +44,24 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .into_stream()
         .filter_map(|l: alloy::rpc::types::Log| l.log_decode::<Transfer>().ok());
 
-    while let Some(log) = log_stream.next().await {
-        println!(
-            "just printed some money on token {} going to {}, amount {}",
-            log.inner.address, log.inner.to, log.inner.amount
-        );
-        dbg!(log);
+    loop {
+        tokio::select! {
+            log = log_stream.next() => {
+                if log.is_none() {
+                    break;
+                }
+                let log = log.unwrap();
+                println!(
+                    "just printed some money on token {} going to {}, amount {}",
+                    log.inner.address, log.inner.to, log.inner.amount
+                );
+                dbg!(log);
+            }
+            _ = &mut quit_rx => {
+                break
+            }
+        }
     }
+
     Ok(())
 }
