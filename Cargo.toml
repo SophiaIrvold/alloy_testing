@@ -1,0 +1,9 @@
+[package]
+name = "eth_erc20_thingy"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+alloy = { version = "0.11.1", features = ["provider-ws", "transport-ws"] }
+tokio = { version = "1.43.0", features = ["macros", "rt", "rt-multi-thread"] }
+tokio-stream = "0.1.17"
